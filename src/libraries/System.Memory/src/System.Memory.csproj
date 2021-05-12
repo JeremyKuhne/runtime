@@ -12,6 +12,9 @@
     <GenFacadesIgnoreMissingType Include="System.Buffers.SequenceReader`1" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="System\Buffers\SpanReaderExtensions.Binary.cs" />
+    <Compile Include="System\Buffers\SpanReader.cs" />
+    <Compile Include="System\Buffers\SpanReader.Search.cs" />
     <Compile Include="System\SequencePosition.cs" />
     <Compile Include="System\ThrowHelper.cs" />
     <Compile Include="System\Buffers\ArrayMemoryPool.cs" />
@@ -34,8 +37,7 @@
   </ItemGroup>
   <ItemGroup>
     <!-- Common or Common-branched source files -->
-    <Compile Include="$(CommonPath)System\Buffers\ArrayBufferWriter.cs"
-             Link="Common\System\Buffers\ArrayBufferWriter.cs" />
+    <Compile Include="$(CommonPath)System\Buffers\ArrayBufferWriter.cs" Link="Common\System\Buffers\ArrayBufferWriter.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="$(CoreLibProject)" />
