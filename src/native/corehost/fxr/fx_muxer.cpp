@@ -1035,6 +1035,11 @@ int fx_muxer_t::handle_cli(
         framework_info::print_all_frameworks(host_info.dotnet_root, _X(""));
         return StatusCode::Success;
     }
+    else if (pal::strcasecmp(_X("--host-info"), argv[1]) == 0)
+    {
+        command_line::print_host_info();
+        return StatusCode::Success;
+    }
 
     //
     // Did not execute the app or run other commands, so try the CLI SDK dotnet.dll
