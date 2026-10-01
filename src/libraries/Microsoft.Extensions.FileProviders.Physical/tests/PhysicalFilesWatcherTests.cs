@@ -7,6 +7,10 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+#if NET
+using Microsoft.Extensions.FileSystemGlobbing;
+using Touki.Io.Globbing;
+#endif
 using Microsoft.Extensions.Primitives;
 using Xunit;
 using Xunit.Sdk;
@@ -16,6 +20,29 @@ namespace Microsoft.Extensions.FileProviders.Physical.Tests
     public class PhysicalFilesWatcherTests : FileCleanupTestBase
     {
         private const int WaitTimeForTokenToFire = 500;
+
+#if NET
+        public static TheoryData<string, string, bool> WildcardMatchData => new()
+        {
+            { "*.txt", "alpha.txt", true },
+            { "*.txt", "gamma.dat", false },
+            { "*.*", "README", true },
+            { "a?b", "a?b", true },
+            { "a?b", "axb", false },
+            { "*/*.txt", "one/x.txt", true },
+            { "*/*.txt", "x.txt", false },
+            { "**/*.cs", "x.cs", true },
+            { "**/*.cs", "one/two/x.cs", true },
+            { "**/*.cs", "one/x.txt", false },
+            { "one/**/*.cs", "one/x.cs", true },
+            { "one/**/*.cs", "two/x.cs", false },
+            { "one/**", "one/x/y.txt", true },
+            { "a/", "a/file.txt", true },
+            { "a/", "a", false },
+            { "./**/hello.txt", "alpha/hello.txt", true },
+            { "*.JSON", "config.json", true },
+        };
+#endif
 
         public static TheoryData<bool> WatcherModeData
         {
@@ -87,6 +114,134 @@ namespace Microsoft.Extensions.FileProviders.Physical.Tests
                 Assert.IsType<NullChangeToken>(token);
             }
         }
+
+        [Fact]
+        [SkipOnPlatform(TestPlatforms.Browser | TestPlatforms.iOS | TestPlatforms.tvOS, "System.IO.FileSystem.Watcher is not supported on Browser/iOS/tvOS")]
+        public void CreateFileChangeToken_ThrowsForParentSegmentAfterNormalSegment()
+        {
+            using var root = new TempDirectory(GetTestFilePath());
+            using var fileSystemWatcher = new MockFileSystemWatcher(root.Path);
+            using var physicalFilesWatcher = new PhysicalFilesWatcher(root.Path, fileSystemWatcher, pollForChanges: false);
+
+            ArgumentException exception = Assert.Throws<ArgumentException>(
+                () => physicalFilesWatcher.CreateFileChangeToken("**/../b"));
+
+            Assert.Equal("\"..\" can be only added at the beginning of the pattern.", exception.Message);
+        }
+
+#if NET
+        [Theory]
+        [MemberData(nameof(WildcardMatchData))]
+        public void ToukiWildcardMatcher_MatchesExpectedFileSystemGlobbingResults(
+            string pattern,
+            string path,
+            bool expected)
+        {
+            Assert.Equal(expected, FileSystemGlobbingMatches(pattern, path));
+            Assert.Equal(expected, ToukiMatches(pattern, path));
+        }
+
+        [Fact]
+        public void ToukiWildcardMatcher_BoundedCorpusAgreesWithFileSystemGlobbing()
+        {
+            string[] patterns =
+            [
+                "*",
+                "*.*",
+                "*.txt",
+                "**",
+                "**/*.cs",
+                "one/**/*.cs",
+                "a/",
+                "./**/hello.txt",
+                "a//b",
+                "a///b",
+                "**//*.cs",
+                "*\u00C5",
+            ];
+            string[] paths =
+            [
+                "",
+                "README",
+                "alpha.txt",
+                "x.cs",
+                "one/x.cs",
+                "one/two/x.cs",
+                "a/file.txt",
+                "a/x/b",
+                "a/x/y/b",
+                "src/Foo.cs",
+                "x\u00E5",
+            ];
+
+            foreach (string pattern in patterns)
+            {
+                foreach (string path in paths)
+                {
+                    bool expected = FileSystemGlobbingMatches(pattern, path);
+                    bool actual = ToukiMatches(pattern, path);
+                    Assert.True(
+                        expected == actual,
+                        $"Pattern '{pattern}' and path '{path}' produced FSG={expected}, Touki={actual}.");
+                }
+            }
+        }
+
+        [Fact]
+        public void ToukiWildcardMatcher_LongLiteralBodyAgreesWithFileSystemGlobbing()
+        {
+            string literal = new('a', char.MaxValue + 1);
+            string pattern = literal + "/*";
+            string path = literal + "/file.txt";
+
+            var matcher = new Matcher(StringComparison.OrdinalIgnoreCase);
+            matcher.AddInclude(pattern);
+            Assert.True(ToukiMatches(pattern, path));
+        }
+
+        [Fact]
+        public void ToukiWildcardMatcher_LongLiteralChunkPreservesSurrogatePair()
+        {
+            string prefix = new('a', char.MaxValue - 1);
+            const string Upper = "\U00010400";
+            const string Lower = "\U00010428";
+            string pattern = prefix + Upper + "/*";
+            string path = prefix + Lower + "/file.txt";
+
+            var matcher = new Matcher(StringComparison.OrdinalIgnoreCase);
+            matcher.AddInclude(pattern);
+            Assert.True(ToukiMatches(pattern, path));
+        }
+
+        [Fact]
+        public void ToukiWildcardMatcher_LongTailAnchorPreservesSurrogatePair()
+        {
+            string prefix = new('a', char.MaxValue - 1);
+            const string Upper = "\U00010400";
+            const string Lower = "\U00010428";
+            string pattern = "*" + prefix + Upper;
+            string path = "x" + prefix + Lower;
+
+            var matcher = new Matcher(StringComparison.OrdinalIgnoreCase);
+            matcher.AddInclude(pattern);
+            Assert.True(ToukiMatches(pattern, path));
+        }
+
+        private static bool FileSystemGlobbingMatches(string pattern, string path)
+        {
+            var matcher = new Matcher(StringComparison.OrdinalIgnoreCase);
+            matcher.AddInclude(pattern);
+            return matcher.Match(path).HasMatches;
+        }
+
+        private static bool ToukiMatches(string pattern, string path) =>
+            GlobSpecification.Compile(
+                pattern,
+                GlobDialect.FileSystemGlobbing,
+                GlobOptions.IgnoreCase,
+                GlobPathSeparator.ForwardSlash,
+                maxPatternLength: -1).IsMatch(path);
+#endif
 
         [Fact]
         [SkipOnPlatform(TestPlatforms.Browser | TestPlatforms.iOS | TestPlatforms.tvOS, "System.IO.FileSystem.Watcher is not supported on Browser/iOS/tvOS")]

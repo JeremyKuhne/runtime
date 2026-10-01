@@ -334,7 +334,7 @@ namespace Microsoft.Extensions.FileProviders
 
         /// <summary>
         ///     <para>Creates a <see cref="IChangeToken" /> for the specified <paramref name="filter" />.</para>
-        ///     <para>Globbing patterns are interpreted by <see cref="Microsoft.Extensions.FileSystemGlobbing.Matcher" />.</para>
+        ///     <para>Globbing patterns use Microsoft.Extensions.FileSystemGlobbing pattern syntax.</para>
         /// </summary>
         /// <param name="filter">
         /// Filter string used to determine what files or directories to monitor. Example: **/*.cs, *.*,

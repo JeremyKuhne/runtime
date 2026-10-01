@@ -1,13 +1,19 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFrameworks>$(NetCoreAppCurrent);$(NetCoreAppPrevious);$(NetCoreAppMinimum);netstandard2.0;$(NetFrameworkMinimum)</TargetFrameworks>
+    <_Net8TargetFramework Condition="'$(NetCoreAppCurrent)' != 'net8.0' and '$(NetCoreAppPrevious)' != 'net8.0' and '$(NetCoreAppMinimum)' != 'net8.0'">net8.0;</_Net8TargetFramework>
+    <TargetFrameworks>$(NetCoreAppCurrent);$(NetCoreAppPrevious);$(NetCoreAppMinimum);$(_Net8TargetFramework)netstandard2.0;$(NetFrameworkMinimum)</TargetFrameworks>
     <RootNamespace>Microsoft.Extensions.FileProviders</RootNamespace>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <EnableDefaultItems>true</EnableDefaultItems>
     <IsPackable>true</IsPackable>
     <PackageDescription>File provider for physical files for Microsoft.Extensions.FileProviders.</PackageDescription>
     <IncludeSpanPolyfills>true</IncludeSpanPolyfills>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(TargetFramework)' == '$(NetCoreAppCurrent)' or '$(TargetFramework)' == '$(NetCoreAppPrevious)' or '$(TargetFramework)' == '$(NetCoreAppMinimum)' or '$(TargetFramework)' == 'net8.0'">
+    <UseToukiGlobbing>true</UseToukiGlobbing>
+    <DefineConstants>$(DefineConstants);USE_TOUKI_GLOBBING</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup>
@@ -21,6 +27,16 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Remove="Internal\Touki\**\*.cs" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(UseToukiGlobbing)' == 'true'">
+    <Compile Include="Internal\Touki\**\*.cs" />
+    <Compile Include="$(CommonPath)System\Text\ValueStringBuilder.cs"
+             Link="Internal\Touki\Text\ValueStringBuilder.cs" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(UseToukiGlobbing)' != 'true'">
     <ProjectReference Include="$(LibrariesProjectRoot)Microsoft.Extensions.FileSystemGlobbing\src\Microsoft.Extensions.FileSystemGlobbing.csproj" />
   </ItemGroup>
 
@@ -28,5 +44,11 @@
     <ProjectReference Include="$(LibrariesProjectRoot)Microsoft.Extensions.FileProviders.Abstractions\src\Microsoft.Extensions.FileProviders.Abstractions.csproj" />
     <ProjectReference Include="$(LibrariesProjectRoot)Microsoft.Extensions.Primitives\src\Microsoft.Extensions.Primitives.csproj" />
   </ItemGroup>
+
+  <Target Name="IncludeNet8PackageValidationBaseline" BeforeTargets="RunPackageValidation">
+    <ItemGroup>
+      <PackageValidationBaselineFrameworkToIgnore Remove="net8.0" />
+    </ItemGroup>
+  </Target>
 
 </Project>

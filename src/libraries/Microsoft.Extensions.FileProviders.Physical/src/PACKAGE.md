@@ -61,7 +61,7 @@ The main types provided by this library are:
 <!-- The related packages associated with this package -->
 
 * Abstractions of files and directories: [Microsoft.Extensions.FileProviders.Abstractions](https://www.nuget.org/packages/Microsoft.Extensions.FileProviders.Abstractions/)
-* File system globbing to find files matching a specified pattern: [Microsoft.Extensions.FileSystemGlobbing](https://www.nuget.org/packages/Microsoft.Extensions.FileSystemGlobbing/)
+* File system globbing APIs and the downlevel wildcard-watch implementation: [Microsoft.Extensions.FileSystemGlobbing](https://www.nuget.org/packages/Microsoft.Extensions.FileSystemGlobbing/)
 
 ## Feedback & Contributing
 

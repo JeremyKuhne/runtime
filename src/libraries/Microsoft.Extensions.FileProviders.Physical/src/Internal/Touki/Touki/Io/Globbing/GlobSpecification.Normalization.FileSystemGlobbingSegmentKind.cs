@@ -1,0 +1,28 @@
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+
+// Copyright (c) 2025 Jeremy W Kuhne
+// SPDX-License-Identifier: MIT
+// See LICENSE file in the project root for full license information
+
+namespace Touki.Io.Globbing;
+
+internal sealed partial class GlobSpecification
+{
+    private static partial class Normalization
+    {
+        /// <summary>
+        ///  Classification used by FileSystemGlobbing segment normalization.
+        /// </summary>
+        private enum FileSystemGlobbingSegmentKind : byte
+        {
+            Literal,
+            Empty,
+            Current,
+            Parent,
+            StarDotStar,
+            DoubleStar,
+            RecursiveSuffix,
+        }
+    }
+}

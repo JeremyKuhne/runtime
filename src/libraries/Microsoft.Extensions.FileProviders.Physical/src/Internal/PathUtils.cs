@@ -46,7 +46,7 @@ namespace Microsoft.Extensions.FileProviders.Physical.Internal
             var tokenizer = new StringTokenizer(path, PathSeparators);
             int depth = 0;
 
-            foreach (StringSegment segment in tokenizer)
+            foreach (Microsoft.Extensions.Primitives.StringSegment segment in tokenizer)
             {
                 if (segment.Equals(".") || segment.Equals(""))
                 {

@@ -11,7 +11,13 @@ using System.Security;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.FileProviders.Physical.Internal;
+#if USE_TOUKI_GLOBBING
+using Touki.Io.Globbing;
+using WildcardMatcher = Touki.Io.Globbing.GlobSpecification;
+#else
 using Microsoft.Extensions.FileSystemGlobbing;
+using WildcardMatcher = Microsoft.Extensions.FileSystemGlobbing.Matcher;
+#endif
 using Microsoft.Extensions.Internal;
 using Microsoft.Extensions.Primitives;
 
@@ -143,8 +149,7 @@ namespace Microsoft.Extensions.FileProviders.Physical
         /// <returns>A change token for all files and directories that match the filter.</returns>
         /// <remarks>
         /// Globbing patterns are relative to the root directory given in the constructor
-        /// <see cref="PhysicalFilesWatcher(string, FileSystemWatcher, bool)" />. Globbing patterns
-        /// are interpreted by <see cref="Matcher" />.
+        /// <see cref="PhysicalFilesWatcher(string, FileSystemWatcher, bool)" />.
         /// </remarks>
         /// <exception cref="ArgumentNullException"><paramref name="filter" /> is <see langword="null"/>.</exception>
         public IChangeToken CreateFileChangeToken(string filter)
@@ -225,8 +230,7 @@ namespace Microsoft.Extensions.FileProviders.Physical
             {
                 var cancellationTokenSource = new CancellationTokenSource();
                 var cancellationChangeToken = new CancellationChangeToken(cancellationTokenSource.Token);
-                var matcher = new Matcher(StringComparison.OrdinalIgnoreCase);
-                matcher.AddInclude(pattern);
+                WildcardMatcher matcher = CreateWildcardMatcher(pattern);
                 tokenInfo = new ChangeTokenInfo(cancellationTokenSource, cancellationChangeToken, matcher);
                 tokenInfo = _wildcardTokenLookup.GetOrAdd(pattern, tokenInfo);
             }
@@ -254,6 +258,31 @@ namespace Microsoft.Extensions.FileProviders.Physical
             }
 
             return changeToken;
+        }
+
+        internal static WildcardMatcher CreateWildcardMatcher(string pattern)
+        {
+            ArgumentNullException.ThrowIfNull(pattern);
+
+#if USE_TOUKI_GLOBBING
+            try
+            {
+                return GlobSpecification.Compile(
+                    pattern,
+                    GlobDialect.FileSystemGlobbing,
+                    GlobOptions.IgnoreCase,
+                    GlobPathSeparator.ForwardSlash,
+                    maxPatternLength: -1);
+            }
+            catch (GlobFormatException exception) when (exception.Error.Code == GlobCompileErrorCode.ParentSegmentNotAtBeginning)
+            {
+                throw new ArgumentException(exception.Message);
+            }
+#else
+            var matcher = new WildcardMatcher(StringComparison.OrdinalIgnoreCase);
+            matcher.AddInclude(pattern);
+            return matcher;
+#endif
         }
 
         /// <summary>
@@ -424,8 +453,7 @@ namespace Microsoft.Extensions.FileProviders.Physical
 
             foreach (KeyValuePair<string, ChangeTokenInfo> wildCardEntry in _wildcardTokenLookup)
             {
-                PatternMatchingResult matchResult = wildCardEntry.Value.Matcher!.Match(path);
-                if (matchResult.HasMatches &&
+                if (wildCardEntry.Value.Matches(path) &&
                     _wildcardTokenLookup.TryRemove(wildCardEntry.Key, out matchInfo))
                 {
                     CancelToken(matchInfo);
@@ -725,7 +753,7 @@ namespace Microsoft.Extensions.FileProviders.Physical
             public ChangeTokenInfo(
                 CancellationTokenSource tokenSource,
                 CancellationChangeToken changeToken,
-                Matcher? matcher)
+                WildcardMatcher? matcher)
             {
                 TokenSource = tokenSource;
                 ChangeToken = changeToken;
@@ -736,7 +764,16 @@ namespace Microsoft.Extensions.FileProviders.Physical
 
             public CancellationChangeToken ChangeToken { get; }
 
-            public Matcher? Matcher { get; }
+            public WildcardMatcher? Matcher { get; }
+
+            public bool Matches(string path)
+            {
+#if USE_TOUKI_GLOBBING
+                return Matcher!.IsMatch(path.AsSpan());
+#else
+                return Matcher!.Match(path).HasMatches;
+#endif
+            }
         }
 
         // Watches for a non-existent directory to be created. Walks up from the target
